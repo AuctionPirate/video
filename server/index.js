@@ -1,13 +1,15 @@
 const express = require('express');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
-const { RedisAdapter } = require('@socket.io/redis-adapter');
 const { createClient } = require('redis');
 const { createClient: createSupabase } = require('@supabase/supabase-js');
+const { createAdapter } = require('@socket.io/redis-adapter');
 
 const app = express();
-const server = createServer(app);
-const io = new Server(server, { cors: { origin: process.env.VERCEL_FRONTEND_URL } });
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: { origin: process.env.VERCEL_FRONTEND_URL }
+});
 
 console.log('REDIS_URL:', process.env.REDIS_URL);
 
@@ -29,10 +31,15 @@ async function connectRedis() {
 }
 connectRedis();
 
-// Create Redis adapter with 'new'
-const pubClient = redisClient;
-const subClient = pubClient.duplicate();
-io.adapter(new RedisAdapter(pubClient, subClient));
+// Initialize Redis adapter after server setup
+try {
+  const pubClient = redisClient;
+  const subClient = pubClient.duplicate();
+  io.adapter(createAdapter(pubClient, subClient));
+  console.log('Redis Adapter initialized');
+} catch (err) {
+  console.error('Redis Adapter Error:', err);
+}
 
 const supabase = createSupabase(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
@@ -58,4 +65,4 @@ io.on('connection', (socket) => {
   socket.on('next', () => socket.emit('match', { peerId: null }));
 });
 
-server.listen(3001, () => console.log('Server on port 3001'));
+httpServer.listen(3001, () => console.log('Server on port 3001'));
