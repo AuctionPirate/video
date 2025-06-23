@@ -29,10 +29,10 @@ async function connectRedis() {
 }
 connectRedis();
 
-// Explicitly use the same Redis client for pub/sub
+// Create Redis adapter with 'new'
 const pubClient = redisClient;
 const subClient = pubClient.duplicate();
-io.adapter(RedisAdapter(pubClient, subClient));
+io.adapter(new RedisAdapter(pubClient, subClient));
 
 const supabase = createSupabase(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
