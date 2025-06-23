@@ -8,7 +8,10 @@ const { createAdapter } = require('@socket.io/redis-adapter');
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: process.env.VERCEL_FRONTEND_URL }
+  cors: { 
+    origin: '*', // Allow all origins for testing
+    methods: ['GET', 'POST']
+  }
 });
 
 console.log('REDIS_URL:', process.env.REDIS_URL);
