@@ -1,0 +1,31 @@
+version: '3.8'
+services:
+  server:
+    build: ./server
+    ports:
+      - "3001:3001"
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - VERCEL_FRONTEND_URL=${VERCEL_FRONTEND_URL}
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+  coturn:
+    build: ./coturn
+    ports:
+      - "3478:3478"
+      - "3478:3478/udp"
+    environment:
+      - EXTERNAL_IP=${EXTERNAL_IP}
+    restart: unless-stopped
+volumes:
+  redis-data:
