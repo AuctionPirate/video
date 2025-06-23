@@ -31,7 +31,6 @@ async function connectRedis() {
 }
 connectRedis();
 
-// Initialize Redis adapter after server setup
 try {
   const pubClient = redisClient;
   const subClient = pubClient.duplicate();
@@ -45,6 +44,10 @@ const supabase = createSupabase(process.env.SUPABASE_URL, process.env.SUPABASE_K
 
 io.on('connection', (socket) => {
   console.log('Socket connected:', socket.id);
+  socket.on('ping', (data) => {
+    console.log('Received ping:', data);
+    socket.emit('pong', { response: 'Pong from server', received: data });
+  });
   socket.on('signal', (data) => socket.to(data.peerId).emit('signal', data));
   socket.on('join-queue', async () => {
     console.log('User joining queue:', socket.id);
