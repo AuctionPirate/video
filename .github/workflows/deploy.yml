@@ -33,6 +33,6 @@ jobs:
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /root/app
+            cd /root/video
             docker-compose pull
             docker-compose up -d
