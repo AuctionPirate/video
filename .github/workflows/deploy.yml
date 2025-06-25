@@ -33,6 +33,6 @@ jobs:
           username: root
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            cd /root/app
+            cd /root/video
             docker-compose pull
             docker-compose up -d
