@@ -1,32 +1,32 @@
-const express = require('express');
-const { createServer } = require('http');
-const { Server } = require('socket.io');
-const { createClient } = require('redis');
-const { createAdapter } = require('@socket.io/redis-adapter');
+const express = require("express");
+const { createServer } = require("http");
+const { Server } = require("socket.io");
+const { createClient } = require("redis");
+const { createAdapter } = require("@socket.io/redis-adapter");
 
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
-  cors: {
-    origin: '*', // Adjust for production
-    methods: ['GET', 'POST'],
-  },
+	cors: {
+		origin: "*", // Adjust for production
+		methods: ["GET", "POST"],
+	},
 });
 
 const redisClient = createClient({
-  url: process.env.REDIS_URL || 'redis://redis:6379',
-  socket: { reconnectStrategy: (retries) => Math.min(retries * 100, 3000) },
+	url: process.env.REDIS_URL || "redis://redis:6379",
+	socket: { reconnectStrategy: (retries) => Math.min(retries * 100, 3000) },
 });
 
-redisClient.on('error', (err) => console.error('Redis Client Error:', err));
-redisClient.on('connect', () => console.log('Connected to Redis'));
+redisClient.on("error", (err) => console.error("Redis Client Error:", err));
+redisClient.on("connect", () => console.log("Connected to Redis"));
 
 async function connectRedis() {
-  try {
-    await redisClient.connect();
-  } catch (err) {
-    console.error('Redis Connection Failed:', err);
-  }
+	try {
+		await redisClient.connect();
+	} catch (err) {
+		console.error("Redis Connection Failed:", err);
+	}
 }
 connectRedis();
 
@@ -34,55 +34,78 @@ const pubClient = redisClient;
 const subClient = pubClient.duplicate();
 io.adapter(createAdapter(pubClient, subClient));
 
-io.on('connection', (socket) => {
-  console.log('Socket connected:', socket.id);
+io.on("connection", (socket) => {
+	console.log("Socket connected:", socket.id);
 
-  socket.on('join-queue', async () => {
-    console.log('User joining queue:', socket.id);
-    // Try to pop a waiting user from the queue
-    const queuedUser = await redisClient.rPop('userQueue');
-    if (queuedUser && queuedUser !== socket.id && io.sockets.sockets.get(queuedUser)) {
-      // Verify the queued user is still connected
-      socket.join(queuedUser);
-      socket.emit('match', { peerId: queuedUser });
-      io.to(queuedUser).emit('match', { peerId: socket.id });
-      console.log(`Matched ${socket.id} with ${queuedUser}`);
-    } else {
-      // No match found, add to queue
-      await redisClient.lPush('userQueue', socket.id);
-      console.log(`Added ${socket.id} to queue`);
-    }
-  });
+	socket.on("join-queue", async () => {
+		console.log("User joining queue:", socket.id);
 
-  socket.on('signal', (data) => {
-    socket.to(data.peerId).emit('signal', data);
-  });
+		// Check if user is already in queue or matched
+		const isInQueue = await redisClient.lRange("userQueue", 0, -1);
+		if (isInQueue.includes(socket.id)) {
+			console.log(`User ${socket.id} already in queue, ignoring join-queue`);
+			return;
+		}
 
-  socket.on('next', async () => {
-    // Reset client state and re-queue
-    socket.emit('match', { peerId: null });
-    // Re-queue the user
-    const queuedUser = await redisClient.rPop('userQueue');
-    if (queuedUser && queuedUser !== socket.id && io.sockets.sockets.get(queuedUser)) {
-      socket.join(queuedUser);
-      socket.emit('match', { peerId: queuedUser });
-      io.to(queuedUser).emit('match', { peerId: socket.id });
-      console.log(`Matched ${socket.id} with ${queuedUser} after next`);
-    } else {
-      await redisClient.lPush('userQueue', socket.id);
-      console.log(`Re-added ${socket.id} to queue after next`);
-    }
-  });
+		// Try to pop a waiting user from the queue
+		const queuedUser = await redisClient.rPop("userQueue");
+		if (
+			queuedUser &&
+			queuedUser !== socket.id &&
+			io.sockets.sockets.get(queuedUser)
+		) {
+			// Verify the queued user is still connected
+			socket.join(queuedUser);
+			socket.emit("match", { peerId: queuedUser });
+			io.to(queuedUser).emit("match", { peerId: socket.id });
+			console.log(`Matched ${socket.id} with ${queuedUser}`);
 
-  socket.on('disconnect', async () => {
-    console.log('Socket disconnected:', socket.id);
-    // Remove from queue if present
-    await redisClient.lRem('userQueue', 0, socket.id);
-  });
+			// Ensure both users are removed from queue
+			await redisClient.lRem("userQueue", 0, socket.id);
+			await redisClient.lRem("userQueue", 0, queuedUser);
+		} else {
+			// No match found, add to queue
+			await redisClient.lPush("userQueue", socket.id);
+			console.log(`Added ${socket.id} to queue`);
+			socket.emit("match", { peerId: null }); // Inform client they’re waiting
+		}
+	});
 
-  socket.on('ping', (data) => {
-    socket.emit('pong', { response: 'Pong from server', received: data });
-  });
+	socket.on("signal", (data) => {
+		socket.to(data.peerId).emit("signal", data);
+	});
+
+	socket.on("next", async () => {
+		// Reset client state and re-queue
+		socket.emit("match", { peerId: null });
+		// Re-queue the user
+		const queuedUser = await redisClient.rPop("userQueue");
+		if (
+			queuedUser &&
+			queuedUser !== socket.id &&
+			io.sockets.sockets.get(queuedUser)
+		) {
+			socket.join(queuedUser);
+			socket.emit("match", { peerId: queuedUser });
+			io.to(queuedUser).emit("match", { peerId: socket.id });
+			console.log(`Matched ${socket.id} with ${queuedUser} after next`);
+		} else {
+			await redisClient.lPush("userQueue", socket.id);
+			console.log(`Re-added ${socket.id} to queue after next`);
+		}
+	});
+
+	socket.on("disconnect", async () => {
+		console.log("Socket disconnected:", socket.id);
+		// Remove from queue if present
+		await redisClient.lRem("userQueue", 0, socket.id);
+		// Notify matched peer (if any) to reset
+		socket.broadcast.emit("match", { peerId: null });
+	});
+
+	socket.on("ping", (data) => {
+		socket.emit("pong", { response: "Pong from server", received: data });
+	});
 });
 
-httpServer.listen(3001, () => console.log('Server on port 3001'));
+httpServer.listen(3001, () => console.log("Server on port 3001"));
