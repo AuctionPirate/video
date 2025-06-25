@@ -1,18 +1,16 @@
 version: '3.8'
 services:
   server:
-    build:
-      context: ./server
+    image: founderssh/video-server:latest
     ports:
       - "3001:3001"
     depends_on:
       redis:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       - REDIS_URL=redis://redis:6379
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
-      - VERCEL_FRONTEND_URL=${VERCEL_FRONTEND_URL}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001"]
       interval: 30s
@@ -32,13 +30,17 @@ services:
       retries: 5
     restart: unless-stopped
   coturn:
-    build:
-      context: ./coturn
-    network_mode: host
+    image: founderssh/coturn:latest
+    ports:
+      - "3478:3478"
+      - "3478:3478/udp"
     volumes:
+      - ./coturn/turnserver.conf:/etc/turnserver.conf
       - ./coturn/certs:/certs
     environment:
-      - EXTERNAL_IP=157.230.57.181
+      - EXTERNAL_IP=146.190.69.59
+    extra_hosts:
+      - "host.docker.internal:146.190.69.59"
     restart: unless-stopped
 volumes:
   redis-data:
