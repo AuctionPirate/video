@@ -1,7 +1,8 @@
 version: '3.8'
 services:
   server:
-    image: founderssh/video-server:latest
+    build:
+      context: ./server
     ports:
       - "3001:3001"
     depends_on:
@@ -31,7 +32,8 @@ services:
       retries: 5
     restart: unless-stopped
   coturn:
-    image: founderssh/coturn:latest
+    build:
+      context: ./coturn
     network_mode: host
     volumes:
       - ./coturn/certs:/certs

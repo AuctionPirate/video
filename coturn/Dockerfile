@@ -4,4 +4,4 @@ COPY certs/turn_server_cert.pem /certs/turn_server_cert.pem
 COPY certs/turn_server_pkey.pem /certs/turn_server_pkey.pem
 EXPOSE 3478
 EXPOSE 3478/udp
-CMD ["turnserver", "-a", "-v", "-r", "157.230.57.181"]
+CMD ["turnserver", "-v", "-r", "157.230.57.181"]
